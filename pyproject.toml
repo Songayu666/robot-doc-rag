@@ -1,7 +1,7 @@
 [project]
 name = "robot-doc-rag"
 version = "0.1.0"
-description = "Add your description here"
+description = "Deployable RAG service for robot manuals and technical documents"
 readme = "README.md"
 authors = [
     { name = "Songayu666", email = "Songayu0606@163.com" }
@@ -32,3 +32,14 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "ruff>=0.16.5",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
