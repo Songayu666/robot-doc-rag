@@ -3,8 +3,6 @@ from typing import Literal
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from robot_doc_rag.config import settings
-
 router = APIRouter(tags=["health"])
 
 
@@ -16,4 +14,4 @@ class HealthResponse(BaseModel):
 
 @router.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
-    return HealthResponse(status="ok", service=settings.app_name, version="0.1.0")
+    return HealthResponse(status="ok", service="robot-doc-rag", version="0.1.0")
