@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     upload_dir: Path = Path("storage/uploads")
     max_upload_size_mb: int = 20
+    task_step_delay_seconds: float = 1.0
+    task_poll_interval_seconds: float = 0.1
+    sse_heartbeat_seconds: float = 15.0
 
     model_config = SettingsConfigDict(
         env_file=".env",
