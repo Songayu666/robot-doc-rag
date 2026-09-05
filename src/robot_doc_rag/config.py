@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     app_name: str = "Robot Document RAG"
     app_env: str = "development"
     log_level: str = "INFO"
-    database_url: str = "postgresql+asyncpg://localhost/robot_rag"
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/robot_rag"
     redis_url: str = "redis://localhost:6379/0"
     upload_dir: Path = Path("storage/uploads")
     max_upload_size_mb: int = 20

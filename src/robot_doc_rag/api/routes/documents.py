@@ -1,14 +1,17 @@
 from pathlib import Path
 from typing import Annotated
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from robot_doc_rag.config import settings
-from robot_doc_rag.schemas.document import DocumentResponse
-from robot_doc_rag.services.memory_store import documents
+from robot_doc_rag.db.session import get_session
+from robot_doc_rag.repositories.documents import create_document, get_document
+from robot_doc_rag.schemas.document import DocumentResponse, document_response
 
 router = APIRouter()
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 ALLOWED_EXTENSIONS = {".pdf", ".md"}
 READ_CHUNK_SIZE = 1024 * 1024
@@ -23,6 +26,7 @@ def safe_filename(filename: str | None) -> str:
 @router.post("", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
     file: Annotated[UploadFile, File(description="PDF or Markdown document")],
+    session: SessionDep,
     title: Annotated[str | None, Form()] = None,
 ) -> DocumentResponse:
     original_filename = safe_filename(file.filename)
@@ -58,12 +62,25 @@ async def upload_document(
     finally:
         await file.close()
 
-    record = DocumentResponse(
-        id=document_id,
-        filename=original_filename,
-        title=title,
-        size=total_size,
-        status="uploaded",
-    )
-    documents[document_id] = record
-    return record
+    try:
+        record = await create_document(
+            session,
+            document_id=document_id,
+            original_filename=original_filename,
+            title=title,
+            stored_filename=destination.name,
+            content_type=file.content_type or "application/octet-stream",
+            size_bytes=total_size,
+        )
+    except Exception:
+        destination.unlink(missing_ok=True)
+        raise
+    return document_response(record)
+
+
+@router.get("/{document_id}", response_model=DocumentResponse)
+async def read_document(document_id: UUID, session: SessionDep) -> DocumentResponse:
+    document = await get_document(session, document_id)
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    return document_response(document)

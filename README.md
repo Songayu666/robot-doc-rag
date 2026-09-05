@@ -49,6 +49,28 @@ uv run ruff format --check .
 uv run pytest -v
 ```
 
+## PostgreSQL and migrations
+
+Start PostgreSQL, apply the versioned schema, then run the API:
+
+```powershell
+docker compose up -d postgres
+docker compose ps
+uv run alembic upgrade head
+uv run uvicorn robot_doc_rag.main:app --reload
+```
+
+Inspect persisted rows:
+
+```powershell
+docker compose exec postgres psql -U postgres -d robot_rag
+```
+
+```sql
+SELECT id, original_filename, status FROM documents;
+SELECT id, status, progress FROM tasks;
+```
+
 ## Planned stack
 
 - Python 3.12

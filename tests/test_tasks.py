@@ -5,8 +5,8 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from robot_doc_rag.main import app
-from robot_doc_rag.schemas.task import TaskResponse
-from robot_doc_rag.services.memory_store import tasks
+from robot_doc_rag.repositories.documents import create_document
+from robot_doc_rag.repositories.tasks import create_task
 from robot_doc_rag.services.task_processing import simulate_processing, task_event_stream
 
 client = TestClient(app)
@@ -91,29 +91,32 @@ def test_missing_task_sse_returns_404() -> None:
     assert response.json()["detail"] == "Task not found"
 
 
-async def test_event_stream_yields_progress_in_order() -> None:
-    task_id = uuid4()
-    document_id = uuid4()
-    tasks[task_id] = TaskResponse(
-        id=task_id,
-        document_id=document_id,
-        task_type="parse",
-        status="pending",
-        progress=0,
-    )
+async def test_event_stream_yields_progress_in_order(isolated_state) -> None:
+    factory = isolated_state
+    async with factory() as session:
+        document = await create_document(
+            session,
+            document_id=uuid4(),
+            original_filename="manual.pdf",
+            title=None,
+            stored_filename=f"{uuid4()}.pdf",
+            content_type="application/pdf",
+            size_bytes=10,
+        )
+        task = await create_task(session, document_id=document.id, task_type="parse")
 
     async def connected() -> bool:
         return False
 
     async def collect_progress() -> list[int]:
         observed: list[int] = []
-        async for event in task_event_stream(task_id, connected):
+        async for event in task_event_stream(task.id, connected, factory):
             if event.startswith("event: progress"):
                 data_line = event.splitlines()[1].removeprefix("data: ")
                 observed.append(json.loads(data_line)["progress"])
         return observed
 
-    processor = asyncio.create_task(simulate_processing(task_id))
+    processor = asyncio.create_task(simulate_processing(task.id, factory))
     first_client = asyncio.create_task(collect_progress())
     second_client = asyncio.create_task(collect_progress())
     first_progress, second_progress = await asyncio.gather(first_client, second_client)
@@ -123,19 +126,23 @@ async def test_event_stream_yields_progress_in_order() -> None:
     assert second_progress == [0, 10, 30, 50, 70, 100]
 
 
-async def test_event_stream_stops_when_client_disconnects() -> None:
-    task_id = uuid4()
-    tasks[task_id] = TaskResponse(
-        id=task_id,
-        document_id=uuid4(),
-        task_type="parse",
-        status="pending",
-        progress=0,
-    )
+async def test_event_stream_stops_when_client_disconnects(isolated_state) -> None:
+    factory = isolated_state
+    async with factory() as session:
+        document = await create_document(
+            session,
+            document_id=uuid4(),
+            original_filename="manual.pdf",
+            title=None,
+            stored_filename=f"{uuid4()}.pdf",
+            content_type="application/pdf",
+            size_bytes=10,
+        )
+        task = await create_task(session, document_id=document.id, task_type="parse")
 
     async def disconnected() -> bool:
         return True
 
-    events = [event async for event in task_event_stream(task_id, disconnected)]
+    events = [event async for event in task_event_stream(task.id, disconnected, factory)]
 
     assert events == []

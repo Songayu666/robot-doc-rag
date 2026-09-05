@@ -33,6 +33,18 @@ def test_upload_markdown_success() -> None:
     assert response.json()["filename"] == "notes.md"
 
 
+def test_uploaded_document_can_be_queried() -> None:
+    upload = client.post(
+        "/api/v1/documents",
+        files={"file": ("manual.pdf", b"%PDF persisted", "application/pdf")},
+    )
+
+    response = client.get(f"/api/v1/documents/{upload.json()['id']}")
+
+    assert response.status_code == 200
+    assert response.json()["filename"] == "manual.pdf"
+
+
 def test_upload_unsupported_type_returns_415() -> None:
     response = client.post(
         "/api/v1/documents",
